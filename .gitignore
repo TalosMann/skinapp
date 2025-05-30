@@ -37,3 +37,17 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# Python backend (FastAPI)
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+
+# Virtual environments
+env/
+venv/
+skaenv/
+
+# VS Code settings
+.vscode/

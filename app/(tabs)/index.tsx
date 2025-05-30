@@ -1,75 +1,103 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import axios from 'axios';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useState } from 'react';
+import { Button, Image, StyleSheet, Text, View } from 'react-native';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+interface Prediction {
+  label: string;
+  confidence: number;
+}
 
-export default function HomeScreen() {
+export default function App() {
+  const [image, setImage] = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<Prediction[] | null>(null);
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      alert('Permission to access media library is required!');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      // result.assets is an array of ImagePicker.ImagePickerAsset
+      const uri = result.assets[0].uri;
+      setImage(uri);
+      console.log("Picked image URI:", uri);
+      sendToBackend(uri);
+
+    }
+  };
+
+  const sendToBackend = async (uri: string) => {
+    console.log("Sending to backend:", uri);
+    const formData = new FormData();
+    formData.append('file', {
+      uri,
+      name: 'photo.jpg',
+      type: 'image/jpeg',
+    } as any); // Cast as any to satisfy TS for FormData file objects
+
+    try {
+      const response = await axios.post<{ predictions: Prediction[] }>(
+        'http://10.0.2.2:8000/predict',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+
+      console.log("Predictions:", response.data.predictions);
+      setPredictions(response.data.predictions);
+    } catch (error: any) {
+      console.error("Error details:", error);
+
+      if (error.response) {
+        console.error("Response error:", error.response.data);
+        alert(`Server responded with status ${error.response.status}`);
+      } else if (error.request) {
+        console.error("No response received:", error.request);
+        alert("No response from backend.");
+      } else {
+        alert(`Error: ${error.message}`);
+      }
+    }
+
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <Button title="Pick an Image" onPress={pickImage} />
+      {image && (
+        <>
+          <Image source={{ uri: image }} style={styles.image} />
+          <Text style={styles.predictionTitle}>Predictions:</Text>
+          {predictions && predictions.length > 0 ? (
+             predictions.map((p, i) => (
+              <Text key={i}>
+                {p.label}: {(p.confidence * 100).toFixed(2)}%
+              </Text>
+            ))
+          ) : (
+            <Text>No predictions received.</Text>
+          )}
+
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  image: { width: 200, height: 200, marginVertical: 20 },
+  predictionTitle: { fontWeight: 'bold', marginTop: 10, marginBottom: 5 },
 });
