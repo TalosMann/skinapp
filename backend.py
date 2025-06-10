@@ -21,8 +21,20 @@ learner = load_learner(model_path)
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
     contents = await file.read()
+# 🔍 Debug: print size of uploaded file
+    print(f"Received file size: {len(contents)} bytes")
+    
+    # Create image from bytes
     img = PILImage.create(io.BytesIO(contents))
+    
+    # 🔍 Debug: print image size and mode
+    print(f"Image size: {img.size}, mode: {img.mode}")
+    
+    # Predict using the model
     pred, pred_idx, probs = learner.predict(img)
+    
+    # 🔍 Debug: print prediction and confidence
+    print(f"Prediction: {pred}, Confidence: {probs[pred_idx].item() * 100:.2f}%")
     
     # Return JSON with predictions
     return {
